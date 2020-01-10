@@ -1,37 +1,58 @@
-## Welcome to GitHub Pages
+## （一）什么是MQ
 
-You can use the [editor on GitHub](https://github.com/m5j/m5j.github.io/edit/master/index.md) to maintain and preview the content for your website in Markdown files.
+MQ就是消息队列，有3个比较重要的好处：解耦、异步、削峰
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+### 解耦
 
-### Markdown
+#### 不使用MQ -> 耦合
+![dc39f555e7c8bbf5f7b7f2edd7ec5122.png](en-resource://database/961:2)
+系统A与BCD之间的通信，全部需要在系统A里面调用接口
+如果又增加了系统E，那么系统A需要增加调用E的接口的代码
+如果系统B不需要与A通信了，那么需要在系统A里面去掉相应代码
+那么开发系统A的兄弟可能要崩溃，系统A与其他系统产生了严重的耦合
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+#### 使用MQ -> 解耦
+![e26ddec48dde12be255b0708c6c55872.png](en-resource://database/963:1)
+系统A与其他系统之间通过MQ来通信，系统A只需要在MQ上发布消息，其他系统按需进行订阅，PUB/SUB模型，实现解耦
 
-```markdown
-Syntax highlighted code block
+### 异步
 
-# Header 1
-## Header 2
-### Header 3
+#### 不使用MQ -> 同步
+![dc39f555e7c8bbf5f7b7f2edd7ec5122.png](en-resource://database/961:2)
+还是借用这个图来说明
+如果用户从系统A发起请求，这个业务需要ABCD共同作用来完成
+假设ABCD各自处理该业务需要花费300ms，如果做成同步的方式来执行，那么一共耗时1200ms，这个等待时间用户是不能接受的
+而且如果系统BCD挂掉了呢？那系统A应该继续等待吗？还是加入重试机制呢？
 
-- Bulleted
-- List
+#### 使用MQ -> 异步
+![3d33b93a25449be67feb58b7ea777c33.png](en-resource://database/965:1)
+可以考虑把某些业务延迟处理，做成异步的方式
+系统A只需要往MQ发送消息，然后其他系统去订阅消息完成剩余的业务逻辑
+此时用户从系统A发起请求到得到反馈只需要300ms，用户体验得到提升
+比如：下订单->减库存
 
-1. Numbered
-2. List
+### 削峰
 
-**Bold** and _Italic_ and `Code` text
+#### 不使用MQ -> 无削峰应对措施
+![b03aada4edb0d0f2e39fcf9742ba8717.png](en-resource://database/968:1)
+数据库每秒的处理能力是有限的，如果遇到网站并发高峰期，超过了数据库的承载能力，那么数据库可能会崩掉，届时整个系统都无法使用
 
-[Link](url) and ![Image](src)
-```
+#### 使用MQ -> 有削峰应对措施
+![9ccc055120aa5883c96103e1f35798c5.png](en-resource://database/970:1)
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
 
-### Jekyll Themes
+### MQ的缺点
+#### 系统可用性降低
+MQ如果挂掉，那么相关业务将不可用
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/m5j/m5j.github.io/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+#### 系统复杂度变高
+如果MQ出现消息丢失呢？如果系统与MQ之间的交互出现问题，一条数据被发送了多次呢？
+要处理好这些问题，就必然要对MQ本身、系统与MQ之间的交互进行良好地维护，使得系统变得更加复杂
 
-### Support or Contact
+#### 一致性问题
+用户给系统A发送一个请求，本来这个请求应该是系统ABCD都执行成功了，才代表这个业务成功
+但是为了用户体验使用了MQ进行异步处理，然后系统D要是处理失败了，实际上这个业务并没有完全处理成功，但是系统A早就已经给了用户一个“成功”的反馈，出现矛盾
 
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
+
+## 总结
+是否使用MQ要根据具体的业务场景进行分析，使用MQ带来的好处和坏处都要考虑到
